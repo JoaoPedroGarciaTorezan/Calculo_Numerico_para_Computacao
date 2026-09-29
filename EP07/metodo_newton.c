@@ -1,39 +1,127 @@
+/*Instituto de Matemática e Computação
+  CMAC05 – Cálculo Numérico para Computação
+  Exercício Prático 07 - 29/09/26
+  João Pedro Garcia Torezan - 2025002063
+  Rodrigo Silvestre Ribeiro de Oliveira - 2024001965
+
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 
 #define MAX 100
 
-/* Imprime o fator (x - xi) tratando o sinal de xi */
+static double px[MAX], py[MAX];
+static int npontos, grau;
+
 static void imprime_fator(double xi)
 {
-    if (xi >= 0)
+    if (xi >= 0) {
         printf("(x-%g)", xi);
-    else
+    }
+    else {
         printf("(x+%g)", -xi);
+    }
+}
+
+static void preve(double x)
+{
+    double xs[MAX], tab[MAX][MAX], dist[MAX];
+    double resumo_val[MAX], resumo_err[MAX];
+    int i, j, k, g;
+
+    /* Ordena os pontos pela distancia a x (mais proximo primeiro) */
+    for (i = 0; i < npontos; i++) {
+        double d = fabs(px[i] - x), yv = py[i], xv = px[i];
+        j = i - 1;
+        while (j >= 0 && dist[j] > d) {
+            dist[j + 1] = dist[j];
+            xs[j + 1]   = xs[j];
+            tab[j + 1][0] = tab[j][0];
+            j--;
+        }
+        dist[j + 1] = d;
+        xs[j + 1]   = xv;
+        tab[j + 1][0] = yv;
+    }
+
+    /* Diferencas divididas na ordem da sequencia escolhida */
+    for (j = 1; j < npontos; j++) {
+        for (i = 0; i < npontos - j; i++) {
+            tab[i][j] = (tab[i + 1][j - 1] - tab[i][j - 1]) / (xs[i + j] - xs[i]);
+        }
+    }
+
+    printf("\n================ Previsao para x = %g ================\n", x);
+    printf("Sequencia de pontos (do mais proximo ao mais distante):\n");
+    for (i = 0; i < npontos; i++) {
+        printf("  x%d = %g   f = %g\n", i, xs[i], tab[i][0]);
+    }
+
+    printf("\nTabela de diferencas divididas:\n");
+    for (i = 0; i < npontos; i++) {
+        printf("x%-2d = %8.4f | ", i, xs[i]);
+        for (j = 0; j < npontos - i; j++) {
+            printf("%12.6f ", tab[i][j]);
+        }
+        printf("\n");
+    }
+
+    for (g = 1; g <= grau; g++) {
+        double val, produto = 1.0;
+
+        printf("\n--- Polinomio de grau %d (pontos x0..x%d) ---\n", g, g);
+        printf("n(x) = %g", tab[0][0]);
+        for (k = 1; k <= g; k++) {
+            printf(" + %g.", tab[0][k]);
+            for (i = 0; i < k; i++) {
+                imprime_fator(xs[i]);
+            }
+        }
+        printf("\n");
+
+        /* Horner */
+        val = tab[0][g];
+        for (k = g - 1; k >= 0; k--) {
+            val = val * (x - xs[k]) + tab[0][k];
+        }
+        printf("n%d(%g) = %.6f\n", g, x, val);
+        resumo_val[g] = val;
+
+        /* Estimativa de erro desta previsao */
+        double dnext = tab[0][g + 1], erro;
+        for (i = 0; i <= g; i++) {
+            produto *= (x - xs[i]);
+        }
+        erro = fabs(produto * dnext);
+        printf("Proximo ponto da tabela: x%d = %g\n", g + 1, xs[g + 1]);
+        printf("|(x-x0)...(x-x%d)| = %.6e ; |D%d| = %.6e\n", g, fabs(produto), g + 1, fabs(dnext));
+        printf("|E%d(%g)| ~= %.6e\n", g, x, erro);
+        resumo_err[g] = erro;
+    }
+
+    printf("\n----------- Resumo para x = %g -----------\n", x);
+    printf("Grau |      n(x)      | Erro estimado\n");
+    for (g = 1; g <= grau; g++) {
+        printf("%4d | %14.6f | %.6e\n", g, resumo_val[g], resumo_err[g]);
+    }
 }
 
 int main(void)
 {
-    int npontos, grau, m, i, j, k, inicio;
-    double x, px[MAX], py[MAX];
-    double xs[MAX], tab[MAX][MAX];
+    int i;
+    double x;
+    char op;
 
     printf("Quantidade de pontos: ");
-    if (scanf("%d", &npontos) != 1 || npontos < 1 || npontos > MAX) {
-        printf("Quantidade de pontos invalida (1 a %d).\n", MAX);
+    if (scanf("%d", &npontos) != 1 || npontos < 2 || npontos > MAX) {
+        printf("Quantidade de pontos invalida (2 a %d).\n", MAX);
         return 1;
     }
 
-    printf("Grau do polinomio desejado: ");
-    if (scanf("%d", &grau) != 1 || grau < 0 || grau > npontos - 1) {
-        printf("Grau invalido: deve estar entre 0 e %d.\n", npontos - 1);
-        return 1;
-    }
-
-    printf("Valor de x a interpolar: ");
-    if (scanf("%lf", &x) != 1) {
-        printf("Valor de x invalido.\n");
+    printf("Grau maximo desejado (polinomios de grau 1 ate este): ");
+    if (scanf("%d", &grau) != 1 || grau < 1 || grau > npontos - 2) {
+        printf("Grau invalido: deve estar entre 1 e %d (o erro usa o proximo ponto).\n", npontos - 2);
         return 1;
     }
 
@@ -45,84 +133,27 @@ int main(void)
             return 1;
         }
     }
-
-    // Ordena os pontos por x 
-    for (i = 1; i < npontos; i++) {
-        double tx = px[i], ty = py[i];
-        j = i - 1;
-        while (j >= 0 && px[j] > tx) {
-            px[j + 1] = px[j];
-            py[j + 1] = py[j];
-            j--;
-        }
-        px[j + 1] = tx;
-        py[j + 1] = ty;
+    for (i = 0; i < npontos; i++) {
+        int j;
+        for (j = i + 1; j < npontos; j++)
+            if (px[i] == px[j]) {
+                printf("Erro: existem valores de x repetidos.\n");
+                return 1;
+            }
     }
 
-    // Verifica x repetidos (divisao por zero nas diferencas divididas) 
-    for (i = 1; i < npontos; i++) {
-        if (px[i] == px[i - 1]) {
-            printf("Erro: existem valores de x repetidos.\n");
+    do {
+        printf("\nValor de x a interpolar: ");
+        if (scanf("%lf", &x) != 1) {
+            printf("Valor de x invalido.\n");
             return 1;
         }
-    }
-
-    // Seleciona grau+1 pontos consecutivos mais proximos de x 
-    m = grau + 1;
-    inicio = 0;
-    {
-        double melhor = INFINITY;
-        for (i = 0; i + m <= npontos; i++) {
-            double c1 = fabs(x - px[i]);
-            double c2 = fabs(x - px[i + m - 1]);
-            double custo = c1 > c2 ? c1 : c2;
-            if (custo < melhor) {
-                melhor = custo;
-                inicio = i;
-            }
+        preve(x);
+        printf("\nDeseja fazer outra previsao? (s/n): ");
+        if (scanf(" %c", &op) != 1) {
+            break;
         }
-    }
-
-    for (i = 0; i < m; i++) {
-        xs[i] = px[inicio + i];
-        tab[i][0] = py[inicio + i];
-    }
-
-    // Tabela de diferencas divididas 
-    for (j = 1; j < m; j++)
-        for (i = 0; i < m - j; i++)
-            tab[i][j] = (tab[i + 1][j - 1] - tab[i][j - 1]) / (xs[i + j] - xs[i]);
-
-    // Impressao da tabela
-    printf("\nPontos utilizados e tabela de diferencas divididas:\n");
-    for (i = 0; i < m; i++) {
-        printf("x%d = %10.4f | ", i, xs[i]);
-        for (j = 0; j < m - i; j++)
-            printf("%12.6f ", tab[i][j]);
-        printf("\n");
-    }
-
-    // Coeficientes Dk = tab[0][k] 
-    printf("\nCoeficientes:\n");
-    for (k = 0; k < m; k++)
-        printf("D%d = %.6f\n", k, tab[0][k]);
-
-    // Impressao do polinomio 
-    printf("\nn(x) = %g", tab[0][0]);
-    for (k = 1; k < m; k++) {
-        printf(" + %g.", tab[0][k]);
-        for (i = 0; i < k; i++)
-            imprime_fator(xs[i]);
-    }
-    printf("\n");
-
-    // Avaliacao em x (forma de Horner) 
-    {
-        double resultado = tab[0][m - 1];
-        for (k = m - 2; k >= 0; k--)
-            resultado = resultado * (x - xs[k]) + tab[0][k];
-        printf("\nn(%g) = %.6f\n", x, resultado);
-    }
+    } while (op == 's' || op == 'S');
 
     return 0;
 }
