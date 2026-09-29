@@ -17,7 +17,7 @@ Exercício 3
 -2*sin(x) + x*/
 double f(double x) {
     // Função a ser escolhida
-    return x*x*x - 3*x + 1;
+    return x*x*x*x*x - 6;
 }
 
 // Função que calcula a derivada numérica em um ponto x
